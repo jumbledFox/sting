@@ -1,0 +1,9 @@
+[package]
+name = "sting"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+markdown = "1.0.0-alpha.17"
+titlecase = "3.1.1"
+walkdir = "2.5.0"

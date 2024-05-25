@@ -1,8 +1,8 @@
-background: neon
+background: /res/images/gradients/neon.png
 ---
-[[box]]
-[[title]]# THREE ?!?[[end]]
-[[body]]
+{box}
+{title}# THREE ?!?{end}
+{body}
 it can't be...
-[[end]]
-[[end-box]]
+{end}
+{end-box}

@@ -4,14 +4,20 @@ use titlecase::titlecase;
 use walkdir::WalkDir;
 
 const DEFAULT_INPUT_FOLDER: &str = "!sting_data";
-const TEMPLATE_REPLACE:     &str = "[!sting_replace]";
-const TEMPLATE_BREADCRUMBS: &str = "[!sting_breadcrumbs]";
-const CONFIG_SPLIT:         &str = "\n---\n";
-const STYLE_BOX:     &str = "[[box]]";
-const STYLE_TITLE:   &str = "[[title]]";
-const STYLE_BODY:    &str = "[[body]]";
-const STYLE_END:     &str = "[[end]]";
-const STYLE_END_BOX: &str = "[[end-box]]";
+const DEFAULT_CONFIG_FILE:  &str = "default_config.md";
+const TEMPLATE_FILE:        &str = "template.html";
+
+const TEMPLATE_REPLACE:     &str = "{!sting_replace}";
+const TEMPLATE_BREADCRUMBS: &str = "{!sting_breadcrumbs}";
+
+const CONFIG_SPLIT:   &str = "\n---\n";
+const CONFIG_REPLACE: &str = "!sting_config_";
+
+const STYLE_BOX:     &str = "{box}";
+const STYLE_TITLE:   &str = "{title}";
+const STYLE_BODY:    &str = "{body}";
+const STYLE_END:     &str = "{end}";
+const STYLE_END_BOX: &str = "{end-box}";
 
 type ConfigMap = HashMap<String, String>;
 
@@ -19,6 +25,21 @@ type ConfigMap = HashMap<String, String>;
 fn warn_err<T>(r: Result<T>) {
     if let Err(e) = r {
         println!("{e}")
+    }
+}
+
+// Holy shit this fucking sucks... but it works
+trait ReplaceWithEscaping {
+    fn replace_wih_escaping(self, from: &str, to: &str) -> Self;
+}
+
+impl ReplaceWithEscaping for String {
+    fn replace_wih_escaping(self, from: &str, to: &str) -> Self {
+        const HACKY_SOLUTION: &str = "!!}1==--HACKY-SOLUTION!!--==1{!!";
+        self
+            .replace(&format!("\\{from}")[..], HACKY_SOLUTION)
+            .replace(from, to)
+            .replace(HACKY_SOLUTION, from)
     }
 }
 
@@ -30,13 +51,15 @@ fn main() {
         None => DEFAULT_INPUT_FOLDER,
     });
 
-    let template = match fs::read_to_string(input_folder.join("template.html")) {
+    let template = match fs::read_to_string(input_folder.join(TEMPLATE_FILE)) {
         Ok(t)  => t,
         Err(_) => String::from(TEMPLATE_REPLACE),
     };
-    let default_configs = fs::read_to_string(input_folder.join("default_configs.md"))
+    let default_configs = fs::read_to_string(input_folder.join(DEFAULT_CONFIG_FILE))
         .map(|s| parse_configs(&s, None, None))
         .unwrap_or_default();
+    let skip_paths = ["", TEMPLATE_FILE, DEFAULT_CONFIG_FILE]
+        .map(|p| Path::new(p));
 
     for dir_entry in WalkDir::new(input_folder) {
         let dir_entry = match dir_entry {
@@ -47,9 +70,8 @@ fn main() {
         // The new file should be one folder above the input folder
         let out_path = match dir_entry.path().strip_prefix(input_folder) {
             // Make sure it can't make a recursive thingy!!
-            Ok(p) if p.starts_with(input_folder) => { println!("Recursive thingy!!"); continue; }
-            // If it's a blank path (first walkdir), or it's the template, don't bother!!
-            Ok(p) if [Path::new(""), Path::new("template.html"), Path::new("default_configs.md")].contains(&p) => continue,
+            Ok(p) if p.starts_with(input_folder) => { println!("{:?} has the same name as the input folder, skipping!", p.display()); continue; }
+            Ok(p) if skip_paths.contains(&p) => continue,
             Ok(p)  => p,
             Err(e) => { println!("{e}"); continue; },
         };
@@ -59,20 +81,21 @@ fn main() {
             warn_err(fs::create_dir(out_path));
             continue;
         }
-        // If it's a file that's NOT index.md, just copy it over
-        if dir_entry.path().is_file() && dir_entry.path().file_name() != Some(OsStr::new("index.md")) {
-            warn_err(fs::copy(dir_entry.path(), out_path));
-            continue;
-        }
-        // If it's an index.md file, parse it!
-        if dir_entry.path().is_file() && dir_entry.path().file_name() == Some(OsStr::new("index.md")) {
+        // If it's an index.md file, or a 404 in the root, parse it!
+        if dir_entry.path().is_file() && (dir_entry.path().file_name() == Some(OsStr::new("index.md")) || dir_entry.path() == input_folder.join(Path::new("404.md"))) {
             let file_string = match fs::read_to_string(dir_entry.path()) {
                 Ok(m)  => m,
                 Err(e) => { println!("{e}"); continue; },
             };
             let page_path = out_path.with_extension("html");
             let parsed = parse(file_string, &template, &default_configs, &page_path);
-            warn_err(fs::write(page_path, parsed))
+            warn_err(fs::write(page_path, parsed));
+            continue;
+        }
+        // If it's a file and not one parsed, just copy it over
+        if dir_entry.path().is_file()  {
+            warn_err(fs::copy(dir_entry.path(), out_path));
+            continue;
         }
     }
 }
@@ -83,11 +106,11 @@ fn parse(mut string: String, template: &String, default_configs: &ConfigMap, pag
     let configs = get_configs(&mut string, default_configs, page_parent);
     // Parse the file and put it into the template
     let string = string
-        .replace(STYLE_BOX,     "<div class=\"box\">\n\n")
-        .replace(STYLE_TITLE,   "<div class=\"title\">\n\n")
-        .replace(STYLE_BODY,    "<div class=\"body\">\n\n")
-        .replace(STYLE_END,     "</div>")
-        .replace(STYLE_END_BOX, "</div>");
+        .replace_wih_escaping(STYLE_BOX,     "<div class=\"box\">\n\n")
+        .replace_wih_escaping(STYLE_TITLE,   "<div class=\"title\">\n\n")
+        .replace_wih_escaping(STYLE_BODY,    "<div class=\"body\">\n\n")
+        .replace_wih_escaping(STYLE_END,     "</div>")
+        .replace_wih_escaping(STYLE_END_BOX, "</div>");
     let markdown_options = markdown::Options {
         compile: markdown::CompileOptions {
             allow_dangerous_html: true,
@@ -105,7 +128,7 @@ fn parse(mut string: String, template: &String, default_configs: &ConfigMap, pag
         .replacen(TEMPLATE_BREADCRUMBS, &generate_breadcrumbs(page_path, default_configs), 1);
     // Replace the config values in the parsed html file
     for (config, value) in configs.iter() {
-        parsed = parsed.replace(&format!("[sting_{config}]"), value);
+        parsed = parsed.replace(&format!("{{{CONFIG_REPLACE}{config}}}"), value);
     }
     parsed
 }
@@ -152,13 +175,14 @@ fn parse_configs(config_string: &String, default_configs: Option<&ConfigMap>, pa
 }
 
 fn generate_breadcrumbs(page_path: &Path, default_configs: &ConfigMap) -> String {
+    let breadcrumb_html = |s: String| format!("<ul class=\"breadcrumb\">{s}</ul>");
     // Put in a closure so i only compute when necessary
     let root_message = || {
         let r = default_configs
             .get("breadcrumbs_root_message")
             .map(|s| s.clone())
             .unwrap_or_default();
-        format!("<ul class=\"breadcrumb\"><li>{r}</li></ul>")
+        breadcrumb_html(format!("<li>{r}</li>"))
     };
     
     // If the page is the root, display the root message
@@ -188,7 +212,7 @@ fn generate_breadcrumbs(page_path: &Path, default_configs: &ConfigMap) -> String
         };
     }
     let home_crumb = String::from("<li><a href=\"/\">Home</a></li>");
-    format!("<ul class=\"breadcrumb\">{home_crumb}{breadcrumbs}</ul>")
+    breadcrumb_html(format!("{home_crumb}{breadcrumbs}"))
 }
 
 fn title(path: &Path) -> String {

@@ -1,8 +1,8 @@
-background: zen
+background: /res/images/gradients/zen.png
 ---
-[[box]]
-[[title]]# TWO[[end]]
-[[body]]
+{box}
+{title}# TWO{end}
+{body}
 2....
-[[end]]
-[[end-box]]
+{end}
+{end-box}

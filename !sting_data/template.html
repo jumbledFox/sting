@@ -8,9 +8,14 @@
         <link rel="stylesheet" href="/res/style.css">
         <style>:root { --grad: url("{!sting_config_background}"); }</style>
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <script>
-            // Dear god, I hate JS.
-            window.onload = function() {
+    </head>
+    <body>
+        <div id="background"></div>
+        <div id="all">
+        <div id="checker"></div>
+        <div id="topnav">
+            <script>
+                // Dear god, I hate JS.
                 let topnav = document.getElementById("topnav");
                 let breadcrumbs = document.createElement("ul");
                 breadcrumbs.classList.add("breadcrumb");
@@ -21,7 +26,11 @@
                     }).join(' ');
                 }
 
-                let split_path = window.location.pathname.split('/').filter(p => p !== "");
+                let path = window.location.pathname;
+                if (path.endsWith("/index.html")) {
+                    path = path.slice(0, -11)
+                }
+                let split_path = path.split('/').filter(p => p !== "");
 
                 if (split_path.length === 0) {
                     let li = document.createElement("li");
@@ -54,14 +63,8 @@
                 }
 
                 topnav.appendChild(breadcrumbs);
-            }
-        </script>
-    </head>
-    <body>
-        <div id="background"></div>
-        <div id="all">
-        <div id="checker"></div>
-        <div id="topnav" onload="make_breadcrumbs();"></div>
+            </script>
+        </div>
         <div id="content">
             {!sting_replace}
         </div>

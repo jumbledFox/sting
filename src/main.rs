@@ -8,7 +8,6 @@ const DEFAULT_CONFIG_FILE:  &str = "default_config.md";
 const TEMPLATE_FILE:        &str = "template.html";
 
 const TEMPLATE_REPLACE:     &str = "{!sting_replace}";
-const TEMPLATE_BREADCRUMBS: &str = "{!sting_breadcrumbs}";
 
 const CONFIG_SPLIT:   &str = "\n---\n";
 const CONFIG_REPLACE: &str = "!sting_config_";
@@ -123,9 +122,7 @@ fn parse(mut string: String, template: &String, default_configs: &ConfigMap, pag
         Ok(p)  => format!("<base href=\"/{}/\">{p}", page_path.parent().unwrap_or(Path::new("")).display()),
         Err(e) => return format!("{e}"),
     };
-    let mut parsed = template
-        .replacen(TEMPLATE_REPLACE, &parsed, 1)
-        .replacen(TEMPLATE_BREADCRUMBS, &generate_breadcrumbs(page_path, default_configs), 1);
+    let mut parsed = template.replacen(TEMPLATE_REPLACE, &parsed, 1);
     // Replace the config values in the parsed html file
     for (config, value) in configs.iter() {
         parsed = parsed.replace(&format!("{{{CONFIG_REPLACE}{config}}}"), value);
@@ -172,47 +169,6 @@ fn parse_configs(config_string: &String, default_configs: Option<&ConfigMap>, pa
     }
 
     config_map
-}
-
-fn generate_breadcrumbs(page_path: &Path, default_configs: &ConfigMap) -> String {
-    let breadcrumb_html = |s: String| format!("<ul class=\"breadcrumb\">{s}</ul>");
-    // Put in a closure so i only compute when necessary
-    let root_message = || {
-        let r = default_configs
-            .get("breadcrumbs_root_message")
-            .map(|s| s.clone())
-            .unwrap_or_default();
-        breadcrumb_html(format!("<li>{r}</li>"))
-    };
-    
-    // If the page is the root, display the root message
-    let p = match page_path.parent() {
-        Some(p) if p != Path::new("") => p,
-        _ => return root_message(),
-    };
-
-    let mut breadcrumbs = String::new();
-    let mut current = p;
-    let mut first = true;
-
-    loop {
-        // Add the current page to the breadcrumbs
-        let mut crumb = format!("{}", title(current));
-        // Don't add the link if it's the first breadcrumb
-        if !first {
-            let link = format!("/{}", current.display());
-            crumb = format!("<a href=\"{link}\">{crumb}</a>")
-        }
-        first = false;
-        breadcrumbs = format!("<li>{crumb}</li> {breadcrumbs}");
-        // Set current to parent, unless it doesn't have a parent (or it's "")
-        current = match current.parent() {
-            Some(parent) if parent != Path::new("") => parent,
-            _ => break
-        };
-    }
-    let home_crumb = String::from("<li><a href=\"/\">Home</a></li>");
-    breadcrumb_html(format!("{home_crumb}{breadcrumbs}"))
 }
 
 fn title(path: &Path) -> String {

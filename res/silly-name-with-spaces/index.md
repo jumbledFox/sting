@@ -6,6 +6,8 @@ favicon_href: /res/images/gradients/rainbow.png
 {body}
 This name has spaces...
 
+go to [somewhere else](/silly-name-with-spaces/testing-hello) 
+
 Wow.
 {end}
 {end-box}

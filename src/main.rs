@@ -3,7 +3,7 @@ use std::{collections::HashMap, env, ffi::OsStr, fs, io::Result, path::Path};
 use titlecase::titlecase;
 use walkdir::WalkDir;
 
-const DEFAULT_INPUT_FOLDER: &str = "!sting_data";
+const DEFAULT_INPUT_FOLDER: &str = "res";
 const DEFAULT_CONFIG_FILE:  &str = "default_config.md";
 const TEMPLATE_FILE:        &str = "template.html";
 
@@ -63,7 +63,7 @@ fn main() {
     for dir_entry in WalkDir::new(input_folder) {
         let dir_entry = match dir_entry {
             Ok(d)  => d,
-            Err(e) => { println!("{e}"); continue; },
+            Err(e) => { println!("Error getting dir_entry: {e}"); continue; },
         };
 
         // The new file should be one folder above the input folder
@@ -72,11 +72,11 @@ fn main() {
             Ok(p) if p.starts_with(input_folder) => { println!("{:?} has the same name as the input folder, skipping!", p.display()); continue; }
             Ok(p) if skip_paths.contains(&p) => continue,
             Ok(p)  => p,
-            Err(e) => { println!("{e}"); continue; },
+            Err(e) => { println!("Error getting out_path: {e}"); continue; },
         };
         
         // If it's a directory, create it, unless it's the same as the input folder!
-        if dir_entry.path().is_dir() && !out_path.exists() {
+        if dir_entry.path().is_dir() && !out_path.exists() && dir_entry.path() != input_folder {
             warn_err(fs::create_dir(out_path));
             continue;
         }
@@ -91,11 +91,9 @@ fn main() {
             warn_err(fs::write(page_path, parsed));
             continue;
         }
-        // If it's a file and not one parsed, just copy it over
-        if dir_entry.path().is_file()  {
-            warn_err(fs::copy(dir_entry.path(), out_path));
-            continue;
-        }
+        // Otherwise, do nothing!
+        // We don't need to copy over anything else, as we set the base of the page to the sting res folder!!
+        // The unfortunate side effect of this is that all links to other pages on the site must be global.. but like.. i don't really care!!
     }
 }
 
@@ -118,8 +116,12 @@ fn parse(mut string: String, template: &String, default_configs: &ConfigMap, pag
         },
         ..markdown::Options::default()
     };
+    let base = match page_parent.display().to_string().is_empty() {
+        true  => format!("<base href=\"/{}/\">", DEFAULT_INPUT_FOLDER),
+        false => format!("<base href=\"/{}/{}/\">", DEFAULT_INPUT_FOLDER, page_parent.display()),
+    };
     let parsed = match markdown::to_html_with_options(&string, &markdown_options) {
-        Ok(p)  => format!("<base href=\"/{}/\">{p}", page_path.parent().unwrap_or(Path::new("")).display()),
+        Ok(p)  => format!("{base}{p}"),
         Err(e) => return format!("{e}"),
     };
     let mut parsed = template.replacen(TEMPLATE_REPLACE, &parsed, 1);
